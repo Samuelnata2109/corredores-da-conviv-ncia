@@ -13,6 +13,8 @@ import {
   type Choice,
   type Line,
 } from "@/lib/game-data";
+import { endingBackground, sceneBackgrounds } from "@/lib/scene-backgrounds";
+import { useLineVoice } from "@/lib/use-line-voice";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -21,13 +23,13 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Roteiro interativo sobre literatura, empatia e convivência democrática na escola: escolha seus caminhos em 5 cenas e descubra qual dos 3 finais você constrói.",
+          "Roteiro interativo com cenários, caixas de diálogo e vozes dos personagens: escolha seus caminhos em 5 cenas e descubra qual dos 3 finais você constrói.",
       },
       { property: "og:title", content: "Vozes no Corredor — Jogo Interativo" },
       {
         property: "og:description",
         content:
-          "Cinco cenas, três finais. Um jogo de escolhas sobre poesia, bullying e democracia na EEEP Guiomar Belchior Aguiar.",
+          "Cinco cenas, três finais, diálogos narrados com voz. Um jogo de escolhas sobre poesia, bullying e democracia na EEEP Guiomar Belchior Aguiar.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -43,6 +45,7 @@ function Game() {
   const [sceneIndex, setSceneIndex] = useState(0);
   const [lineIndex, setLineIndex] = useState(0);
   const [picks, setPicks] = useState<string[]>([]);
+  const [muted, setMuted] = useState(false);
 
   const scene = scenes[sceneIndex]!;
   const lines: Line[] = useMemo(() => {
@@ -51,11 +54,19 @@ function Game() {
     return [...echo, ...scene.intro];
   }, [scene, picks, sceneIndex]);
 
-  const visible = lines.slice(0, lineIndex + 1);
+  const current = lines[Math.min(lineIndex, lines.length - 1)]!;
   const showChoices = lineIndex >= lines.length - 1;
   const scores = tally(picks);
+  const voice = useLineVoice(phase === "scene" ? current : null, muted);
+
+  function advance() {
+    if (showChoices) return;
+    voice.stop();
+    setLineIndex((v) => Math.min(v + 1, lines.length - 1));
+  }
 
   function pick(choice: Choice) {
+    voice.stop();
     const next = [...picks.slice(0, sceneIndex), choice.id];
     setPicks(next);
     if (sceneIndex === scenes.length - 1) {
@@ -64,15 +75,14 @@ function Game() {
     }
     setSceneIndex(sceneIndex + 1);
     setLineIndex(0);
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function restart() {
+    voice.stop();
     setPicks([]);
     setSceneIndex(0);
     setLineIndex(0);
     setPhase("start");
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   if (phase === "start") {
@@ -80,38 +90,72 @@ function Game() {
   }
 
   if (phase === "ending") {
-    return <EndingScreen picks={picks} onRestart={restart} />;
+    return <EndingScreen picks={picks} muted={muted} onRestart={restart} />;
   }
 
   return (
-    <main className="min-h-screen hero-surface pb-20">
-      <div className="mx-auto max-w-3xl px-4 pt-8 sm:px-6">
-        <ProgressBar current={sceneIndex} picks={picks} />
-
-        <header className="mt-6">
-          <p className="font-display text-xs uppercase tracking-[0.3em] text-accent">
-            {scene.chapter}
-          </p>
-          <h1 className="mt-1 text-2xl font-bold text-foreground sm:text-3xl">🎬 {scene.title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{scene.place}</p>
+    <main
+      className="relative min-h-screen bg-background bg-cover bg-center"
+      style={{ backgroundImage: `url(${sceneBackgrounds[scene.id]})` }}
+    >
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label="Avançar diálogo"
+        onClick={advance}
+        onKeyDown={(e) => {
+          if (e.key === " " || e.key === "Enter") {
+            e.preventDefault();
+            advance();
+          }
+        }}
+        className="relative flex min-h-screen flex-col justify-between bg-gradient-to-b from-background/85 via-background/25 to-background/95 focus:outline-none"
+      >
+        <header className="mx-auto w-full max-w-5xl px-4 pt-5 sm:px-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="font-display text-[11px] uppercase tracking-[0.3em] text-accent">
+                {scene.chapter}
+              </p>
+              <h1 className="mt-0.5 text-xl font-bold text-foreground drop-shadow sm:text-2xl">
+                {scene.title}
+              </h1>
+              <p className="text-xs text-muted-foreground">{scene.place}</p>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMuted((v) => !v);
+              }}
+              className="rounded-lg border border-border bg-card/85 px-3 py-2 font-display text-xs text-foreground backdrop-blur"
+            >
+              {muted ? "🔇 Vozes off" : "🔊 Vozes on"}
+            </button>
+          </div>
+          <ProgressBar current={sceneIndex} picks={picks} />
         </header>
 
-        <div className="mt-6 space-y-4">
-          {visible.map((line, i) => (
-            <DialogueBox
-              key={`${sceneIndex}-${i}`}
-              line={line}
-              canAdvance={i === visible.length - 1 && !showChoices}
-              onAdvance={() => setLineIndex((v) => Math.min(v + 1, lines.length - 1))}
-            />
-          ))}
+        <div className="mx-auto w-full max-w-5xl px-4 pb-8 sm:px-6">
+          {showChoices ? (
+            <div
+              className="pointer-events-auto mb-4 rounded-2xl border border-border bg-background/85 p-4 backdrop-blur"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ChoiceList question={scene.question} choices={scene.choices} onPick={pick} />
+            </div>
+          ) : null}
+
+          <DialogueBox
+            line={current}
+            typedKey={`${sceneIndex}-${lineIndex}`}
+            canAdvance={!showChoices}
+            speaking={voice.speaking}
+            loadingVoice={voice.loading}
+          />
+
+          <ScoreStrip scores={scores} />
         </div>
-
-        {showChoices ? (
-          <ChoiceList question={scene.question} choices={scene.choices} onPick={pick} />
-        ) : null}
-
-        <ScoreStrip scores={scores} />
       </div>
     </main>
   );
@@ -119,7 +163,7 @@ function Game() {
 
 function ProgressBar({ current, picks }: { current: number; picks: string[] }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="mt-4 flex items-center gap-2">
       {scenes.map((s, i) => (
         <div key={s.id} className="flex-1">
           <div
@@ -151,11 +195,11 @@ function ScoreStrip({
     { label: "Confronto", value: scores.confronto, color: "bg-destructive" },
   ];
   return (
-    <div className="mt-10 grid grid-cols-3 gap-3 rounded-xl border border-border bg-card/50 p-4">
+    <div className="mt-4 grid grid-cols-3 gap-3 rounded-xl border border-border bg-card/70 p-3 backdrop-blur">
       {items.map((item) => (
         <div key={item.label}>
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{item.label}</p>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+          <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
             <div
               className={`h-full rounded-full ${item.color} transition-all duration-500`}
               style={{ width: `${Math.min(100, (item.value / 8) * 100)}%` }}
@@ -193,8 +237,8 @@ function StartScreen({ onStart }: { onStart: () => void }) {
           EEEP Guiomar Belchior Aguiar — e um terreno abandonado está dividindo todo mundo.
         </p>
         <p className="mt-3 max-w-xl text-sm text-muted-foreground">
-          5 cenas · 12 escolhas · 3 finais possíveis. Cada decisão acumula Empatia, Regras ou
-          Confronto e muda o desfecho.
+          5 cenas · 12 escolhas · 3 finais possíveis. Clique na tela para avançar cada fala — os
+          personagens falam com vozes fictícias.
         </p>
 
         <button
@@ -234,9 +278,22 @@ function StartScreen({ onStart }: { onStart: () => void }) {
   );
 }
 
-function EndingScreen({ picks, onRestart }: { picks: string[]; onRestart: () => void }) {
+function EndingScreen({
+  picks,
+  muted,
+  onRestart,
+}: {
+  picks: string[];
+  muted: boolean;
+  onRestart: () => void;
+}) {
   const ending = endings[resolveEnding(picks)];
   const scores = tally(picks);
+  const [index, setIndex] = useState(0);
+  const done = index >= ending.lines.length - 1;
+  const current = ending.lines[Math.min(index, ending.lines.length - 1)]!;
+  const voice = useLineVoice(current, muted);
+
   const tone =
     ending.tone === "good"
       ? "border-accent/60"
@@ -245,45 +302,76 @@ function EndingScreen({ picks, onRestart }: { picks: string[]; onRestart: () => 
         : "border-destructive/60";
 
   return (
-    <main className="min-h-screen hero-surface pb-20">
-      <div className="mx-auto max-w-3xl px-4 pt-10 sm:px-6">
-        <p className="font-display text-xs uppercase tracking-[0.3em] text-accent">Cena 5</p>
-        <h1 className="mt-1 text-2xl font-bold text-foreground sm:text-3xl">
-          🎬 O Desfecho e o Novo Espaço
-        </h1>
+    <main
+      className="relative min-h-screen bg-background bg-cover bg-center"
+      style={{ backgroundImage: `url(${endingBackground})` }}
+    >
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label="Avançar diálogo"
+        onClick={() => {
+          if (!done) {
+            voice.stop();
+            setIndex((v) => v + 1);
+          }
+        }}
+        onKeyDown={(e) => {
+          if ((e.key === " " || e.key === "Enter") && !done) {
+            e.preventDefault();
+            setIndex((v) => v + 1);
+          }
+        }}
+        className="flex min-h-screen flex-col justify-between bg-gradient-to-b from-background/85 via-background/30 to-background/95 focus:outline-none"
+      >
+        <header className="mx-auto w-full max-w-5xl px-4 pt-6 sm:px-6">
+          <p className="font-display text-[11px] uppercase tracking-[0.3em] text-accent">Cena 5</p>
+          <h1 className="mt-1 text-xl font-bold text-foreground sm:text-2xl">
+            O Desfecho e o Novo Espaço
+          </h1>
+          <div className={`mt-4 rounded-2xl border-2 bg-card/85 p-4 backdrop-blur ${tone}`}>
+            <span className="font-display text-sm text-primary">{ending.badge}</span>
+            <h2 className="text-2xl font-bold text-foreground">{ending.title}</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Suas escolhas: {picks.join(" → ")}
+            </p>
+          </div>
+        </header>
 
-        <div className={`mt-6 rounded-2xl border-2 bg-card/80 p-6 panel-shadow ${tone}`}>
-          <span className="font-display text-sm text-primary">{ending.badge}</span>
-          <h2 className="mt-1 text-3xl font-bold text-foreground">{ending.title}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Suas escolhas: {picks.join(" → ")}
-          </p>
-        </div>
+        <div className="mx-auto w-full max-w-5xl px-4 pb-8 sm:px-6">
+          {done ? (
+            <div
+              className="pointer-events-auto mb-4 rounded-2xl border border-primary/40 bg-background/90 p-5 backdrop-blur"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="font-display text-lg text-primary">O que essa história ensina</h3>
+              <p className="mt-2 text-[15px] leading-relaxed text-card-foreground">
+                {ending.moral}
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={onRestart}
+                  className="rounded-xl bg-primary px-6 py-3 font-display font-semibold text-primary-foreground transition-transform hover:-translate-y-0.5 glow-ring"
+                >
+                  Jogar de novo
+                </button>
+                <span className="text-sm text-muted-foreground">
+                  Existem outros dois finais — tente outro caminho.
+                </span>
+              </div>
+            </div>
+          ) : null}
 
-        <div className="mt-6 space-y-4">
-          {ending.lines.map((line, i) => (
-            <DialogueBox key={i} line={line} />
-          ))}
-        </div>
+          <DialogueBox
+            line={current}
+            typedKey={`ending-${index}`}
+            canAdvance={!done}
+            speaking={voice.speaking}
+            loadingVoice={voice.loading}
+          />
 
-        <div className="mt-8 rounded-2xl border border-primary/40 bg-card/70 p-6">
-          <h3 className="font-display text-lg text-primary">O que essa história ensina</h3>
-          <p className="mt-2 text-[15px] leading-relaxed text-card-foreground">{ending.moral}</p>
-        </div>
-
-        <ScoreStrip scores={scores} />
-
-        <div className="mt-8 flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={onRestart}
-            className="rounded-xl bg-primary px-6 py-3 font-display font-semibold text-primary-foreground transition-transform hover:-translate-y-0.5 glow-ring"
-          >
-            Jogar de novo
-          </button>
-          <span className="self-center text-sm text-muted-foreground">
-            Existem outros dois finais — tente outro caminho.
-          </span>
+          <ScoreStrip scores={scores} />
         </div>
       </div>
     </main>
