@@ -32,9 +32,22 @@ export function DialogueBox({
   }, [typedKey, line.text]);
 
   return (
-    <div className="animate-rise pointer-events-none flex items-end gap-3 sm:gap-4">
+    <div className="animate-rise pointer-events-none">
+      {char.image ? (
+        <div className="mb-[-14px] ml-1 flex items-end gap-2">
+          <img
+            src={char.image}
+            alt={`Retrato de ${char.name}`}
+            width={512}
+            height={512}
+            loading="lazy"
+            className="size-24 rounded-2xl border-4 border-primary/60 bg-card object-cover object-top panel-shadow sm:size-28 lg:size-32"
+          />
+        </div>
+      ) : null}
+
       <div
-        className={`relative flex-1 rounded-2xl border-4 bg-card/95 p-5 panel-shadow backdrop-blur-sm sm:p-6 ${
+        className={`relative rounded-2xl border-4 bg-card/95 p-5 panel-shadow backdrop-blur-sm sm:p-6 ${
           isNarrator ? "border-border" : "border-primary/60"
         }`}
       >
@@ -74,22 +87,6 @@ export function DialogueBox({
           </span>
         ) : null}
       </div>
-
-      {char.image ? (
-        <div className="hidden shrink-0 sm:block">
-          <img
-            src={char.image}
-            alt={`Retrato de ${char.name}`}
-            width={512}
-            height={512}
-            loading="lazy"
-            className="size-36 rounded-2xl border-4 border-primary/60 object-cover object-top panel-shadow lg:size-44"
-          />
-          <p className="mt-1 rounded-lg border border-border bg-card/90 py-1 text-center font-display text-xs text-foreground">
-            {char.name}
-          </p>
-        </div>
-      ) : null}
     </div>
   );
 }
