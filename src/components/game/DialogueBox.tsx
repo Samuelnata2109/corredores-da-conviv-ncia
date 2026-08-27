@@ -34,14 +34,14 @@ export function DialogueBox({
   return (
     <div className="animate-rise pointer-events-none">
       {char.image ? (
-        <div className="mb-[-14px] ml-1 flex items-end gap-2">
+        <div className="mb-[-10px] ml-1 flex items-end gap-2">
           <img
             src={char.image}
             alt={`Retrato de ${char.name}`}
             width={512}
             height={512}
             loading="lazy"
-            className="size-24 rounded-2xl border-4 border-primary/60 bg-card object-cover object-top panel-shadow sm:size-28 lg:size-32"
+            className="size-16 rounded-2xl border-4 border-primary/60 bg-card object-cover object-top panel-shadow sm:size-20 lg:size-24"
           />
         </div>
       ) : null}
